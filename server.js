@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -11,25 +10,25 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// CORS Configuration
-const allowedOrigins = [
-  'https://lively-sundae-8fec8c.netlify.app', // ✅ Production frontend
-  'http://localhost:3000',                   // ✅ Local development
-];
-
+// ✅ Simplified CORS Configuration
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'http://localhost:3000',
+    'https://lively-sundae-8fec8c.netlify.app',
+    'https://www.geoestate.in',
+    'https://geoestate.in',
+  ],
   credentials: true
 }));
 
 // Middleware
-app.use(express.json()); // Parses JSON payloads
+app.use(express.json());
+
+// Request Logger (optional)
+app.use((req, res, next) => {
+  console.log(`🔹 ${req.method} ${req.url}`);
+  next();
+});
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -39,7 +38,7 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('✅ MongoDB Connected'))
 .catch((err) => {
   console.error('❌ MongoDB connection error:', err.message);
-  process.exit(1); // Exit if DB fails
+  process.exit(1);
 });
 
 // Routes
@@ -51,12 +50,23 @@ app.use('/api/properties', propertyRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// Health Check Route
+// Health check
 app.get('/', (req, res) => {
   res.send('🌐 GeoEstate backend is running on Render');
 });
 
-// Start Server
+// 404 Fallback
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('❗ Server Error:', err.message);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
+// Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
