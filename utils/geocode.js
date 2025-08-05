@@ -1,5 +1,4 @@
 // utils/geocode.js
-import fetch from 'node-fetch';
 
 export const getCoordinates = async (address) => {
   try {
@@ -7,6 +6,7 @@ export const getCoordinates = async (address) => {
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`
     );
     const data = await response.json();
+
     if (data && data.length > 0) {
       return {
         lat: parseFloat(data[0].lat),
