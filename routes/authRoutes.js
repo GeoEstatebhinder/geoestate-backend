@@ -1,70 +1,90 @@
 const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
+const router = express.Router();
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const User = require('../models/user');
 
-// Load env vars
-dotenv.config();
-const app = express();
-const PORT = process.env.PORT || 5001;
+// ✅ POST /api/auth/register
+router.post('/register', async (req, res) => {
+  const { name, email, password, isAdmin } = req.body;
 
-// ✅ CORS
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://lively-sundae-8fec8c.netlify.app',
-    'https://geoestate.in',
-    'https://www.geoestate.in'
-  ],
-  credentials: true,
-}));
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
 
-app.use(express.json());
+  try {
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(409).json({ error: 'Email already in use' });
+    }
 
-// ✅ Log every request
-app.use((req, res, next) => {
-  console.log(`[${req.method}] ${req.url}`);
-  next();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      isAdmin: isAdmin || false,
+    });
+
+    const token = jwt.sign(
+      { userId: newUser._id, isAdmin: newUser.isAdmin },
+      process.env.JWT_SECRET || 'default_secret',
+      { expiresIn: '1d' }
+    );
+
+    res.status(201).json({
+      token,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        isAdmin: newUser.isAdmin,
+      },
+    });
+  } catch (err) {
+    console.error('🔴 Register error:', err);
+    res.status(500).json({ error: 'Server error during registration' });
+  }
 });
 
-// ✅ MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('✅ MongoDB Connected'))
-.catch(err => {
-  console.error('❌ MongoDB Error:', err.message);
-  process.exit(1);
+// ✅ POST /api/auth/login
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, isAdmin: user.isAdmin },
+      process.env.JWT_SECRET || 'default_secret',
+      { expiresIn: '1d' }
+    );
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      },
+    });
+  } catch (err) {
+    console.error('🔴 Login error:', err);
+    res.status(500).json({ error: 'Server error during login' });
+  }
 });
 
-// ✅ Routes
-const propertyRoutes = require('./routes/propertyRoutes');
-const authRoutes = require('./routes/authRoutes');
-const paymentRoutes = require('./routes/paymentRoutes');
-
-app.use('/api/properties', propertyRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/payments', paymentRoutes);
-
-// ✅ Health check
-app.get('/', (req, res) => {
-  res.send('🌐 GeoEstate backend is live!');
-});
-
-// ✅ 404 route
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// ✅ Global error handler
-app.use((err, req, res, next) => {
-  console.error('🔴 Global Error:', err.message);
-  res.status(500).json({ error: 'Internal Server Error' });
-});
-
-// ✅ Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+module.exports = router;
