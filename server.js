@@ -1,15 +1,15 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Load env vars
+// Load .env variables
 dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
-// ✅ CORS
+// ✅ Middleware
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -19,12 +19,11 @@ app.use(cors({
   ],
   credentials: true,
 }));
-
 app.use(express.json());
 
-// ✅ Log every request
+// ✅ Logger for debugging
 app.use((req, res, next) => {
-  console.log(`[${req.method}] ${req.url}`);
+  console.log(`[${req.method}] ${req.originalUrl}`);
   next();
 });
 
@@ -35,32 +34,33 @@ mongoose.connect(process.env.MONGO_URI, {
 })
 .then(() => console.log('✅ MongoDB Connected'))
 .catch(err => {
-  console.error('❌ MongoDB Error:', err.message);
+  console.error('❌ MongoDB Connection Error:', err.message);
   process.exit(1);
 });
 
-// ✅ Routes
-const propertyRoutes = require('./routes/propertyRoutes');
+// ✅ Import routes
 const authRoutes = require('./routes/authRoutes');
+const propertyRoutes = require('./routes/propertyRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 
-app.use('/api/properties', propertyRoutes);
+// ✅ Use routes with proper prefix
 app.use('/api/auth', authRoutes);
+app.use('/api/properties', propertyRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// ✅ Health check
+// ✅ Health Check Route
 app.get('/', (req, res) => {
   res.send('🌐 GeoEstate backend is live!');
 });
 
-// ✅ 404 route
+// ❌ 404 Fallback
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// ✅ Global error handler
+// 🔴 Global Error Handler
 app.use((err, req, res, next) => {
-  console.error('🔴 Global Error:', err.message);
+  console.error('❌ Global Error:', err.message);
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
